@@ -10,14 +10,15 @@ class ResanaScraperWidget {
         this.oversizedProfiles = [];
         this.isRunning = false;
         this.cookies = null;
-        this.headers = null;
         this.writtenCount = 0;
-        this.targetTable = "Annuaire_brut_widget"; // TABLE DE DESTINATION
+        this.targetTable = "Annuaire_brut_widget";
         this.gristAPI = null;
 
         this.initializeUI();
-        this.initializeGrist();
         this.attachEventListeners();
+        
+        // Attendre que Grist soit prêt
+        this.waitForGrist();
     }
 
     /**
@@ -59,20 +60,37 @@ class ResanaScraperWidget {
     }
 
     /**
-     * Initialise Grist API
+     * Attend que Grist soit disponible
      */
-    initializeGrist() {
-        return new Promise((resolve) => {
-            // Vérifier si Grist est disponible
-            if (typeof grist !== 'undefined') {
-                this.gristAPI = grist;
-                console.log("✅ Grist API initialisée");
-                resolve(true);
-            } else {
-                console.warn("⚠️ Grist API non disponible - Mode test");
-                resolve(false);
+    waitForGrist() {
+        console.log("⏳ En attente de Grist...");
+        
+        const checkGrist = setInterval(() => {
+            if (typeof window.grist !== 'undefined' && window.grist) {
+                clearInterval(checkGrist);
+                this.gristAPI = window.grist;
+                console.log("✅ Grist API détecté et prêt");
+                this.initializeGristHandlers();
             }
-        });
+        }, 500);
+
+        // Timeout après 10 secondes
+        setTimeout(() => {
+            if (!this.gristAPI) {
+                clearInterval(checkGrist);
+                console.warn("⚠️ Grist non disponible après 10s - Mode test désactivé");
+                this.updateStatus("❌ Grist API non accessible");
+                this.elements.startScrapeBtn.disabled = true;
+            }
+        }, 10000);
+    }
+
+    /**
+     * Initialise les handlers Grist une fois disponible
+     */
+    initializeGristHandlers() {
+        this.updateStatus("✅ Widget prêt - Cliquez sur 'Démarrer l'extraction'");
+        console.log("✅ Widget initialisé avec Grist");
     }
 
     /**
@@ -95,20 +113,38 @@ class ResanaScraperWidget {
             }
 
             // Récupérer les données de la table Credentials
-            const credentialsData = await this.gristAPI.getDocAPI().getTableData('Credentials');
+            const docAPI = this.gristAPI.getDocAPI();
+            const credentialsData = await docAPI.getTableData('Credentials');
             
+            console.log("📋 Données reçues de Credentials:", credentialsData);
+
             if (!credentialsData || credentialsData.length === 0) {
                 throw new Error("Aucune donnée trouvée dans la table Credentials");
             }
 
-            // Récupérer la première ligne
+            // Récupérer la première ligne (les colonnes sont des propriétés)
             const credentials = credentialsData[0];
             
-            const cookiesPhp = credentials.Cookies_php || '';
-            const cookieInterstiAccess = credentials.cookie_interstis_access || '';
+            // Les noms de colonnes peuvent varier, cherchons les bonnes
+            let cookiesPhp = null;
+            let cookieInterstiAccess = null;
+
+            // Chercher les colonnes de cookies (cas insensible)
+            for (const [key, value] of Object.entries(credentials)) {
+                const lowerKey = key.toLowerCase();
+                if (lowerKey.includes('php') || lowerKey === 'cookies_php') {
+                    cookiesPhp = value;
+                    console.log(`✅ Trouvé cookies_php: ${key}`);
+                }
+                if (lowerKey.includes('interstis') || lowerKey.includes('access')) {
+                    cookieInterstiAccess = value;
+                    console.log(`✅ Trouvé cookie_interstis_access: ${key}`);
+                }
+            }
 
             if (!cookiesPhp || !cookieInterstiAccess) {
-                throw new Error("Cookies manquants dans la table Credentials");
+                console.error("Données credentials disponibles:", Object.keys(credentials));
+                throw new Error("Cookies manquants - Vérifiez les noms de colonnes dans la table Credentials");
             }
 
             this.cookies = {
@@ -163,6 +199,8 @@ class ResanaScraperWidget {
             if (!credOk) {
                 this.isRunning = false;
                 this.elements.startScrapeBtn.disabled = false;
+                this.elements.configSection.style.display = 'block';
+                this.elements.progressSection.style.display = 'none';
                 return;
             }
 
@@ -181,6 +219,10 @@ class ResanaScraperWidget {
 
             const contacts = await this.fetchContacts(socket, maxContacts);
             console.log(`✅ ${contacts.length} contacts récupérés`);
+
+            if (contacts.length === 0) {
+                throw new Error("Aucun contact trouvé - Vérifiez vos credentials");
+            }
 
             this.updateStatus("📝 Extraction des détails des contacts...");
             this.data = [];
@@ -221,6 +263,8 @@ class ResanaScraperWidget {
         } catch (error) {
             console.error("❌ Erreur:", error);
             this.showError(error.message);
+            this.elements.configSection.style.display = 'block';
+            this.elements.progressSection.style.display = 'none';
         } finally {
             this.isRunning = false;
             this.elements.startScrapeBtn.disabled = false;
@@ -254,6 +298,7 @@ class ResanaScraperWidget {
                 throw new Error("Impossible d'extraire le SID");
             }
 
+            console.log("✅ Socket établi");
             return match[1];
         } catch (error) {
             console.error("❌ Erreur Socket.io:", error);
@@ -381,10 +426,10 @@ class ResanaScraperWidget {
                 throw new Error("Grist API n'est pas disponible");
             }
 
-            const docApi = this.gristAPI.getDocAPI();
+            const docAPI = this.gristAPI.getDocAPI();
 
             // Ajouter les enregistrements dans la table Annuaire_brut_widget
-            const addResult = await docApi.addRows(this.targetTable, records);
+            const addResult = await docAPI.addRows(this.targetTable, records);
 
             this.writtenCount = addResult.rowIds ? addResult.rowIds.length : records.length;
             this.elements.statWritten.textContent = this.writtenCount;
@@ -490,5 +535,5 @@ class ResanaScraperWidget {
 // Initialiser au chargement du DOM
 document.addEventListener('DOMContentLoaded', () => {
     window.scraperWidget = new ResanaScraperWidget();
-    console.log("✅ Widget Resana Scraper initialisé");
+    console.log("✅ Widget Resana Scraper en cours d'initialisation...");
 });
