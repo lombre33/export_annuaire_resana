@@ -67,36 +67,44 @@
         }
 
         label {
-            display: block;
-            font-weight: 500;
-            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 14px;
             color: #555;
-            font-size: 13px;
         }
 
-        input[type="text"],
-        input[type="password"],
-        input[type="number"],
-        select {
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #667eea;
+        }
+
+        input[type="number"] {
             width: 100%;
-            padding: 10px 12px;
+            padding: 10px;
             border: 1px solid #ddd;
             border-radius: 6px;
-            font-size: 13px;
-            transition: all 0.3s ease;
+            font-size: 14px;
+            margin-top: 5px;
         }
 
-        input[type="text"]:focus,
-        input[type="password"]:focus,
-        input[type="number"]:focus,
-        select:focus {
+        input[type="number"]:focus {
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
-        .btn {
-            width: 100%;
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            flex: 1;
             padding: 12px;
             border: none;
             border-radius: 6px;
@@ -104,374 +112,224 @@
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
         }
 
-        .btn-primary {
-            background: #667eea;
+        #startScrapeBtn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
         }
 
-        .btn-primary:hover:not(:disabled) {
-            background: #5568d3;
+        #startScrapeBtn:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
         }
 
-        .btn-success {
-            background: #10b981;
-            color: white;
-        }
-
-        .btn-success:hover:not(:disabled) {
-            background: #059669;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
-        }
-
-        .btn-secondary {
-            background: #6b7280;
-            color: white;
-        }
-
-        .btn-secondary:hover:not(:disabled) {
-            background: #4b5563;
-        }
-
-        .btn:disabled {
-            opacity: 0.5;
+        #startScrapeBtn:disabled {
+            opacity: 0.6;
             cursor: not-allowed;
-            transform: none !important;
         }
 
-        /* Progress */
-        .progress-section {
+        #resetBtn {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        #resetBtn:hover {
+            background: #e0e0e0;
+        }
+
+        /* PROGRESS SECTION */
+        #progressSection {
             display: none;
-            animation: slideIn 0.3s ease;
+            text-align: center;
         }
 
         .progress-bar {
             width: 100%;
             height: 8px;
-            background: #eee;
-            border-radius: 4px;
+            background: #e0e0e0;
+            border-radius: 10px;
             overflow: hidden;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
         }
 
-        .progress-fill {
+        #progressFill {
             height: 100%;
-            background: linear-gradient(90deg, #667eea, #764ba2);
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
             width: 0%;
             transition: width 0.3s ease;
         }
 
-        .progress-text {
-            font-size: 12px;
+        #progressText {
+            font-size: 13px;
             color: #666;
-            margin-bottom: 12px;
-        }
-
-        .status-box {
-            background: #f3f4f6;
-            border-left: 4px solid #667eea;
-            padding: 12px;
-            border-radius: 4px;
             margin-bottom: 15px;
         }
 
-        .status-box p {
-            font-size: 13px;
-            color: #555;
-            word-break: break-word;
+        #statusMessage {
+            font-size: 14px;
+            color: #667eea;
+            font-weight: 500;
+            margin-bottom: 10px;
         }
 
-        .stats {
+        /* RESULTS SECTION */
+        #resultsSection {
+            display: none;
+        }
+
+        #resultsSummary {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            border-radius: 6px;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .stats-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: 1fr 1fr;
             gap: 10px;
             margin-bottom: 15px;
         }
 
-        .stat {
-            background: #f9fafb;
-            padding: 10px;
+        .stat-box {
+            background: #f8f9fa;
+            padding: 12px;
             border-radius: 6px;
-            border: 1px solid #e5e7eb;
             text-align: center;
+            font-size: 13px;
         }
 
-        .stat .label {
+        .stat-box strong {
             display: block;
-            font-size: 11px;
-            color: #6b7280;
-            margin-bottom: 5px;
-        }
-
-        .stat .value {
-            display: block;
-            font-size: 18px;
-            font-weight: bold;
+            font-size: 20px;
             color: #667eea;
+            margin-bottom: 4px;
         }
 
-        .stat .value.alert {
-            color: #ef4444;
+        .stat-box span {
+            color: #999;
         }
 
-        /* Results */
-        .results-section {
+        #alertsSection {
             display: none;
-            animation: slideIn 0.3s ease;
-        }
-
-        .results-info {
-            background: #ecfdf5;
-            border: 1px solid #d1fae5;
-            padding: 12px;
+            background: #fff3cd;
+            border: 1px solid #ffc107;
             border-radius: 6px;
-            margin-bottom: 15px;
-        }
-
-        .results-info p {
-            color: #065f46;
-            font-size: 13px;
-            line-height: 1.5;
-        }
-
-        .alerts-section {
-            background: #fef3c7;
-            border: 1px solid #fde68a;
             padding: 12px;
-            border-radius: 6px;
-            margin-bottom: 15px;
-            display: none;
+            margin-top: 15px;
         }
 
-        .alerts-section h3 {
-            color: #92400e;
+        #alertsSection h3 {
+            color: #856404;
             font-size: 13px;
-            margin-bottom: 10px;
-            font-weight: 600;
-        }
-
-        .alerts-list {
-            max-height: 150px;
-            overflow-y: auto;
+            margin-bottom: 8px;
         }
 
         .alert-item {
-            background: white;
-            padding: 8px;
-            border-radius: 4px;
-            margin-bottom: 6px;
+            color: #856404;
             font-size: 12px;
-            color: #78350f;
-            border-left: 3px solid #f59e0b;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255, 193, 7, 0.3);
         }
 
-        .actions {
-            display: flex;
-            gap: 8px;
-            flex-direction: column;
-        }
-
-        .actions .btn {
-            margin-bottom: 0;
-        }
-
-        footer {
-            background: #f3f4f6;
-            padding: 15px;
-            text-align: center;
-            color: #6b7280;
-            font-size: 11px;
-        }
-
-        .info-box {
-            background: #dbeafe;
-            border: 1px solid #bfdbfe;
-            padding: 10px;
-            border-radius: 6px;
-            margin-bottom: 15px;
-            font-size: 12px;
-            color: #1e40af;
-        }
-
-        .checkbox-group {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 12px;
-            flex-wrap: wrap;
-        }
-
-        .checkbox-group label {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            cursor: pointer;
-            font-weight: 400;
-            font-size: 13px;
-        }
-
-        input[type="checkbox"] {
-            cursor: pointer;
-            width: 16px;
-            height: 16px;
-            accent-color: #667eea;
-        }
-
-        .spinner {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border: 2px solid rgba(102, 126, 234, 0.3);
-            border-radius: 50%;
-            border-top-color: #667eea;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @media (max-width: 600px) {
-            .widget-content {
-                padding: 20px;
-            }
-
-            header {
-                padding: 20px;
-            }
-
-            header h1 {
-                font-size: 20px;
-            }
-
-            .stats {
-                grid-template-columns: 1fr;
-            }
+        .alert-item:last-child {
+            border-bottom: none;
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- HEADER -->
         <header>
-            <h1>🔍 Resana Scraper</h1>
-            <p class="subtitle">Extraction vers l'annuaire Grist</p>
+            <h1>🔄 Resana Scraper</h1>
+            <p class="subtitle">Extraction automatique de l'annuaire vers Grist</p>
         </header>
 
         <div class="widget-content">
-            <!-- Info -->
-            <div class="info-box">
-                ℹ️ Les identifiants Resana sont récupérés automatiquement depuis votre table de configuration.
-            </div>
-
-            <!-- Configuration -->
-            <section class="config-section" id="configSection">
+            <!-- CONFIG SECTION -->
+            <section id="configSection">
                 <h2>⚙️ Configuration</h2>
-                
+
                 <div class="form-group">
-                    <label for="tableSelect">Table de configuration</label>
-                    <select id="tableSelect">
-                        <option value="">-- Sélectionner --</option>
-                    </select>
+                    <label for="maxContacts">Nombre maximum de contacts :</label>
+                    <input type="number" id="maxContacts" value="500" min="1" max="10000">
                 </div>
 
                 <div class="form-group">
-                    <label for="maxContacts">Nombre max de contacts</label>
-                    <input type="number" id="maxContacts" value="99" min="1" max="500">
-                </div>
-
-                <div class="checkbox-group">
                     <label>
                         <input type="checkbox" id="extractOrganisation" checked>
-                        Organisation
+                        Extraire l'organisation
                     </label>
+                </div>
+
+                <div class="form-group">
                     <label>
                         <input type="checkbox" id="extractPerimetres" checked>
-                        Périmètres
+                        Extraire les périmètres (max 15)
                     </label>
+                </div>
+
+                <div class="form-group">
                     <label>
                         <input type="checkbox" id="extractCompetences" checked>
-                        Compétences
+                        Extraire les compétences (max 15)
                     </label>
                 </div>
 
-                <button class="btn btn-primary" id="startScrapeBtn">
-                    ▶️ Démarrer l'extraction
-                </button>
+                <div class="button-group">
+                    <button id="startScrapeBtn">▶️ Démarrer l'extraction</button>
+                    <button id="resetBtn">↻ Réinitialiser</button>
+                </div>
             </section>
 
-            <!-- Progress -->
-            <section class="progress-section" id="progressSection">
-                <h2><span class="spinner"></span> Extraction en cours</h2>
-                
+            <!-- PROGRESS SECTION -->
+            <section id="progressSection">
+                <h2>📊 Progression</h2>
                 <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill"></div>
+                    <div id="progressFill"></div>
                 </div>
-                <p class="progress-text" id="progressText">0/0 contacts</p>
-
-                <div class="status-box">
-                    <p id="statusMessage">Initialisation...</p>
-                </div>
-
-                <div class="stats">
-                    <div class="stat">
-                        <span class="label">Contacts</span>
-                        <span class="value" id="statContacts">0</span>
-                    </div>
-                    <div class="stat">
-                        <span class="label">Écrits</span>
-                        <span class="value" id="statWritten">0</span>
-                    </div>
-                    <div class="stat">
-                        <span class="label">Périmètres</span>
-                        <span class="value" id="statPerimetres">0</span>
-                    </div>
-                    <div class="stat">
-                        <span class="label">Erreurs</span>
-                        <span class="value alert" id="statErrors">0</span>
-                    </div>
-                </div>
+                <div id="progressText">0/0 contacts</div>
+                <div id="statusMessage">Préparation...</div>
             </section>
 
-            <!-- Résultats -->
-            <section class="results-section" id="resultsSection">
-                <h2>✅ Terminé</h2>
+            <!-- RESULTS SECTION -->
+            <section id="resultsSection">
+                <h2>✅ Résultats</h2>
+                <div id="resultsSummary"></div>
 
-                <div class="results-info">
-                    <p id="resultsSummary"></p>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <strong id="statContacts">0</strong>
+                        <span>Contacts extraits</span>
+                    </div>
+                    <div class="stat-box">
+                        <strong id="statWritten">0</strong>
+                        <span>Contacts écrits</span>
+                    </div>
+                    <div class="stat-box">
+                        <strong id="statPerimetres">0</strong>
+                        <span>Max périmètres</span>
+                    </div>
+                    <div class="stat-box">
+                        <strong id="statErrors">0</strong>
+                        <span>Erreurs</span>
+                    </div>
                 </div>
 
-                <div class="alerts-section" id="alertsSection">
-                    <h3>⚠️ Alertes de dépassement</h3>
-                    <div class="alerts-list" id="alertsList"></div>
+                <div id="alertsSection">
+                    <h3>⚠️ Profils avec trop de périmètres</h3>
+                    <div id="alertsList"></div>
                 </div>
 
-                <div class="actions">
-                    <button class="btn btn-secondary" id="resetBtn">🔄 Réinitialiser</button>
+                <div class="button-group">
+                    <button id="resetBtn">↻ Nouvelle extraction</button>
                 </div>
             </section>
         </div>
-
-        <footer>
-            <p>Resana Scraper v2.0 | Custom Widget Grist</p>
-        </footer>
     </div>
 
     <script src="script.js"></script>
