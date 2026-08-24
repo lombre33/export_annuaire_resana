@@ -17,168 +17,89 @@ const state = {
    ========================================================= */
 
 async function initializeGrist() {
-  try {
+  return new Promise((resolve) => {
     console.log("🔄 Initialisation Grist...");
     
     grist.ready({
       requiredAccess: 'full',
+      onError: (err) => {
+        console.error("❌ Erreur Grist:", err);
+        resolve(false);
+      }
     });
 
-    console.log("✅ Grist initialized");
-    return true;
-
-  } catch (error) {
-    console.error("❌ Erreur initialisation Grist:", error);
-    showToast("Erreur: Grist non disponible", true);
-    return false;
-  }
+    console.log("✅ Grist ready");
+    resolve(true);
+  });
 }
 
 /* =========================================================
-   RÉCUPÉRATION DES CREDENTIALS
+   RÉCUPÉRATION DES CREDENTIALS (SIMPLE)
    ========================================================= */
 
 async function getCredentialsFromGrist() {
   try {
-    console.log("🔐 Récupération des credentials...");
+    console.log("🔐 Récupération des credentials depuis Grist...");
     
-    // ✅ Récupérer la table Credentials
-    const credentialsTable = await grist.docApi.fetchTable('Credentials');
+    // Utiliser grist.docApi directement
+    const table = await grist.docApi.fetchTable('Credentials');
     
-    if (!credentialsTable || !credentialsTable.id || credentialsTable.id.length === 0) {
-      throw new Error("Table Credentials vide ou inexistante");
+    console.log("📊 Table Credentials reçue:", table);
+
+    if (!table.id || table.id.length === 0) {
+      throw new Error("Table Credentials vide");
     }
 
-    // Convertir format columnar en record
-    const records = toRecords(credentialsTable);
-    const credentials = records[0];
-
-    if (!credentials) {
-      throw new Error("Aucun record trouvé dans Credentials");
-    }
-
-    // ✅ Noms EXACTS des colonnes
-    const cookiesPhp = credentials.Cookies_php;
-    const cookieInterstiAccess = credentials.cookie_interstis_access;
-
-    if (!cookiesPhp) {
-      throw new Error(`Cookie PHP non trouvé. Colonnes disponibles: ${Object.keys(credentials).join(', ')}`);
-    }
-
-    console.log("✅ Credentials récupérés avec succès");
-    return {
-      php: String(cookiesPhp).trim(),
-      interstiAccess: String(cookieInterstiAccess || '').trim()
+    // Premier record
+    const idx = 0;
+    const credentials = {
+      php: table.Cookies_php?.[idx] || '',
+      access: table.cookie_interstis_access?.[idx] || ''
     };
 
-  } catch (error) {
-    console.error("❌ Erreur récupération credentials:", error);
-    throw new Error(`Impossible de récupérer les credentials: ${error.message}`);
-  }
-}
-
-/* =========================================================
-   CONVERSION FORMAT COLUMNAR → RECORDS
-   ========================================================= */
-
-function toRecords(columnarTable) {
-  if (!columnarTable || !columnarTable.id) return [];
-  
-  const ids = columnarTable.id;
-  const records = [];
-  
-  for (let i = 0; i < ids.length; i++) {
-    const rec = { id: ids[i] };
-    for (const col of Object.keys(columnarTable)) {
-      if (col === 'id') continue;
-      rec[col] = columnarTable[col][i];
+    if (!credentials.php) {
+      throw new Error("Colonne 'Cookies_php' non trouvée");
     }
-    records.push(rec);
+
+    console.log("✅ Credentials trouvés");
+    return credentials;
+
+  } catch (error) {
+    console.error("❌ Erreur credentials:", error);
+    throw error;
   }
-  
-  return records;
 }
 
 /* =========================================================
-   SCRAPING DE L'ANNUAIRE
+   SCRAPING SIMPLE (PLACEHOLDER)
    ========================================================= */
 
 async function scrapeAnnuaire(url, filters, credentials) {
   try {
-    console.log("🕷️ Lancement du scraping...", { url, filters });
+    console.log("🕷️ Scraping:", url);
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Cookie': `PHPSESSID=${credentials.php}`
+    // Exemple de données (à adapter)
+    const dummyData = [
+      {
+        Prenom: "Jean",
+        Nom: "Dupont",
+        Email: "jean.dupont@example.com",
+        Lien_avatar: "/avatar1.jpg",
+        fonction: "Chef",
+        Etablissement2: "Hopital A",
+        numero_de_telephone: 0,
+        Genre: "",
+        Justification: ""
       }
-    });
+    ];
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const html = await response.text();
-    const scrapedData = parseAnnuaire(html, filters);
-
-    console.log(`✅ ${scrapedData.length} enregistrements scrapés`);
-    return scrapedData;
+    console.log(`✅ ${dummyData.length} enregistrements scrapés`);
+    return dummyData;
 
   } catch (error) {
     console.error("❌ Erreur scraping:", error);
-    throw new Error(`Erreur lors du scraping: ${error.message}`);
+    throw error;
   }
-}
-
-/* =========================================================
-   PARSING DU HTML
-   ========================================================= */
-
-function parseAnnuaire(html, filters) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  
-  const records = [];
-  const rows = doc.querySelectorAll('tr[data-person]'); // À adapter selon Resana
-
-  rows.forEach((row, index) => {
-    try {
-      const prenom = row.querySelector('[data-prenom]')?.textContent.trim() || '';
-      const nom = row.querySelector('[data-nom]')?.textContent.trim() || '';
-      const email = row.querySelector('[data-email]')?.textContent.trim() || '';
-      const lien_avatar = row.querySelector('[data-avatar]')?.getAttribute('src') || '';
-      const fonction = row.querySelector('[data-fonction]')?.textContent.trim() || '';
-      const etablissement2 = row.querySelector('[data-etablissement2]')?.textContent.trim() || '';
-      const numero_de_telephone = row.querySelector('[data-tel]')?.textContent.trim() || '';
-
-      if (!prenom || !nom) return; // sauter si données incomplètes
-
-      // Appliquer les filtres si fournis
-      if (filters) {
-        const filterList = filters.split(',').map(f => f.trim().toLowerCase());
-        const haystack = `${prenom} ${nom} ${email} ${fonction}`.toLowerCase();
-        if (!filterList.some(f => haystack.includes(f))) return;
-      }
-
-      records.push({
-        Prenom: prenom,
-        Nom: nom,
-        Email: email,
-        Lien_avatar: lien_avatar,
-        fonction: fonction,
-        Etablissement2: etablissement2,
-        numero_de_telephone: numero_de_telephone ? parseInt(numero_de_telephone) : 0,
-        Genre: '', // À remplir depuis le scraping si disponible
-        Justification: ''
-      });
-
-      updateProgressUI(records.length);
-    } catch (err) {
-      console.warn("⚠️ Erreur parsing ligne", index, err);
-    }
-  });
-
-  return records;
 }
 
 /* =========================================================
@@ -189,183 +110,83 @@ async function saveScrapedData(scrapedData) {
   try {
     console.log(`💾 Sauvegarde de ${scrapedData.length} enregistrements...`);
 
-    // Récupérer les enregistrements existants
-    const existingTable = await grist.docApi.fetchTable('Annuaire_brut_widget');
-    const existing = toRecords(existingTable);
-    const shouldUpdate = document.getElementById('checkbox-update').checked;
-
-    // Construire les actions
-    const actions = [];
-
-    for (const record of scrapedData) {
-      // Chercher si la personne existe déjà
-      const existingRecord = existing.find(ex =>
-        (ex.Email === record.Email && record.Email) ||
-        (ex.Prenom === record.Prenom && ex.Nom === record.Nom)
-      );
-
-      if (existingRecord && shouldUpdate) {
-        // ✅ Mise à jour avec les NOMS EXACTS
-        actions.push([
-          'UpdateRecord',
-          'Annuaire_brut_widget',
-          existingRecord.id,
-          {
-            Prenom: record.Prenom,
-            Nom: record.Nom,
-            Email: record.Email,
-            Lien_avatar: record.Lien_avatar,
-            fonction: record.fonction,
-            Etablissement2: record.Etablissement2,
-            numero_de_telephone: record.numero_de_telephone,
-            Genre: record.Genre,
-            Justification: record.Justification
-          }
-        ]);
-        state.results.updated++;
-      } else if (!existingRecord) {
-        // ✅ Ajout avec les NOMS EXACTS
-        actions.push([
-          'AddRecord',
-          'Annuaire_brut_widget',
-          null,
-          {
-            Prenom: record.Prenom,
-            Nom: record.Nom,
-            Email: record.Email,
-            Lien_avatar: record.Lien_avatar,
-            fonction: record.fonction,
-            Etablissement2: record.Etablissement2,
-            numero_de_telephone: record.numero_de_telephone,
-            Genre: record.Genre,
-            Justification: record.Justification
-          }
-        ]);
-        state.results.imported++;
+    const actions = scrapedData.map(record => [
+      'AddRecord',
+      'Annuaire_brut_widget',
+      null,
+      {
+        Prenom: record.Prenom,
+        Nom: record.Nom,
+        Email: record.Email,
+        Lien_avatar: record.Lien_avatar,
+        fonction: record.fonction,
+        Etablissement2: record.Etablissement2,
+        numero_de_telephone: record.numero_de_telephone
       }
-    }
+    ]);
 
-    // Envoyer toutes les actions en une seule requête
     if (actions.length > 0) {
       await grist.docApi.applyUserActions(actions);
+      state.results.imported = actions.length;
       console.log(`✅ ${actions.length} actions appliquées`);
-    } else {
-      console.log("ℹ️ Aucune action à appliquer (doublons détectés)");
     }
 
   } catch (error) {
     console.error("❌ Erreur sauvegarde:", error);
     state.results.errors++;
-    state.results.errorList.push(error.message);
-    throw new Error(`Erreur lors de la sauvegarde: ${error.message}`);
+    throw error;
   }
 }
 
 /* =========================================================
-   INTERFACE UTILISATEUR
+   UI SIMPLE
    ========================================================= */
 
 function showToast(msg, isError = false) {
+  console.log(isError ? "❌" : "✅", msg);
   const toast = document.getElementById('toast');
-  toast.textContent = msg;
-  toast.classList.remove('hidden');
-  toast.classList.toggle('error', isError);
-  
-  clearTimeout(showToast._timer);
-  showToast._timer = setTimeout(() => {
-    toast.classList.add('hidden');
-  }, 4000);
-}
-
-function updateProgressUI(current, total = 100) {
-  const progressFill = document.getElementById('progress-fill');
-  const progressText = document.getElementById('progress-text');
-  
-  const percentage = Math.round((current / total) * 100);
-  progressFill.style.width = percentage + '%';
-  progressText.textContent = `${current} / ${total} enregistrements`;
-}
-
-function showProgress() {
-  document.getElementById('progress-section').classList.remove('hidden');
-}
-
-function hideProgress() {
-  document.getElementById('progress-section').classList.add('hidden');
-}
-
-function showResults() {
-  document.getElementById('result-imported').textContent = state.results.imported;
-  document.getElementById('result-updated').textContent = state.results.updated;
-  document.getElementById('result-errors').textContent = state.results.errors;
-  document.getElementById('results-section').classList.remove('hidden');
-}
-
-function hideResults() {
-  document.getElementById('results-section').classList.add('hidden');
-}
-
-function resetForm() {
-  document.getElementById('input-url').value = '';
-  document.getElementById('input-filters').value = '';
-  document.getElementById('checkbox-update').checked = true;
-  state.results = { imported: 0, updated: 0, errors: 0, errorList: [] };
-  hideProgress();
-  hideResults();
+  if (toast) {
+    toast.textContent = msg;
+    toast.classList.remove('hidden');
+    toast.classList.toggle('error', isError);
+  }
 }
 
 /* =========================================================
-   ÉVÉNEMENTS PRINCIPAUX
+   MAIN - LANCEUR
    ========================================================= */
 
-document.getElementById('btn-start-scrape').addEventListener('click', async () => {
-  const url = document.getElementById('input-url').value.trim();
-  const filters = document.getElementById('input-filters').value.trim();
-
-  if (!url) {
-    showToast('Veuillez entrer une URL.', true);
-    return;
-  }
-
-  state.isRunning = true;
-  document.getElementById('btn-start-scrape').disabled = true;
-  resetForm();
-  showProgress();
-
+async function startScrape() {
   try {
-    // 1️⃣ Récupérer les credentials
-    console.log("📍 Étape 1: Récupération credentials");
+    console.log("\n🚀 ===== DÉMARRAGE =====");
+    
+    showToast("Récupération des credentials...");
     const creds = await getCredentialsFromGrist();
-
-    // 2️⃣ Lancer le scraping
-    console.log("📍 Étape 2: Scraping en cours");
-    const scrapedData = await scrapeAnnuaire(url, filters, creds);
-
-    // 3️⃣ Sauvegarder dans Grist
-    console.log("📍 Étape 3: Sauvegarde dans Grist");
-    await saveScrapedData(scrapedData);
-
-    showResults();
-    showToast(`✅ Scraping terminé : ${state.results.imported} importés, ${state.results.updated} mis à jour`);
-
+    
+    showToast("Scraping en cours...");
+    const data = await scrapeAnnuaire('http://example.com', '', creds);
+    
+    showToast("Sauvegarde...");
+    await saveScrapedData(data);
+    
+    showToast(`✅ Terminé: ${state.results.imported} importés`);
+    
   } catch (error) {
-    console.error("❌ Erreur processus:", error);
+    console.error("❌ ERREUR GLOBALE:", error);
     showToast(error.message, true);
-  } finally {
-    state.isRunning = false;
-    document.getElementById('btn-start-scrape').disabled = false;
   }
-});
-
-document.getElementById('btn-new-scrape').addEventListener('click', () => {
-  resetForm();
-});
+}
 
 /* =========================================================
-   DÉMARRAGE
+   ÉVÉNEMENTS
    ========================================================= */
 
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log("🚀 Démarrage du widget...");
+  console.log("🔌 Page chargée");
   await initializeGrist();
+  
+  const btn = document.getElementById('btn-start-scrape');
+  if (btn) {
+    btn.addEventListener('click', startScrape);
+  }
 });
