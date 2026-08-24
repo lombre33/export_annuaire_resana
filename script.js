@@ -17,8 +17,8 @@ class ResanaScraperWidget {
         this.initializeUI();
         this.attachEventListeners();
         
-        // Attendre que Grist soit prêt
-        this.waitForGrist();
+        // Initialiser Grist via la méthode correcte
+        this.initializeGrist();
     }
 
     /**
@@ -60,45 +60,75 @@ class ResanaScraperWidget {
     }
 
     /**
-     * Attend que Grist soit disponible
+     * Initialise Grist API correctement
      */
-    waitForGrist() {
-        console.log("⏳ En attente de Grist...");
-        
-        const checkGrist = setInterval(() => {
-            if (typeof window.grist !== 'undefined' && window.grist) {
-                clearInterval(checkGrist);
-                this.gristAPI = window.grist;
-                console.log("✅ Grist API détecté et prêt");
-                this.initializeGristHandlers();
-            }
-        }, 500);
+    initializeGrist() {
+        console.log("⏳ Initialisation de Grist API...");
 
-        // Timeout après 10 secondes
-        setTimeout(() => {
-            if (!this.gristAPI) {
-                clearInterval(checkGrist);
-                console.warn("⚠️ Grist non disponible après 10s - Mode test désactivé");
-                this.updateStatus("❌ Grist API non accessible");
-                this.elements.startScrapeBtn.disabled = true;
-            }
-        }, 10000);
+        // Vérifier si le script Grist est chargé
+        if (typeof window.grist === 'undefined') {
+            // Charger le script Grist manuellement si nécessaire
+            console.log("📥 Chargement du script Grist...");
+            this.loadGristScript();
+        } else {
+            this.setupGristAPI();
+        }
     }
 
     /**
-     * Initialise les handlers Grist une fois disponible
+     * Charge le script Grist si absent
      */
-    initializeGristHandlers() {
-        this.updateStatus("✅ Widget prêt - Cliquez sur 'Démarrer l'extraction'");
-        console.log("✅ Widget initialisé avec Grist");
+    loadGristScript() {
+        const script = document.createElement('script');
+        script.src = 'https://docs.getgrist.com/grist-plugin-api.js';
+        script.onload = () => {
+            console.log("✅ Script Grist chargé");
+            this.setupGristAPI();
+        };
+        script.onerror = () => {
+            console.error("❌ Impossible de charger Grist API");
+            this.updateStatus("❌ Grist API non disponible - Assurez-vous d'être dans Grist");
+            this.elements.startScrapeBtn.disabled = true;
+        };
+        document.head.appendChild(script);
+    }
+
+    /**
+     * Configure l'API Grist une fois disponible
+     */
+    setupGristAPI() {
+        try {
+            if (!window.grist) {
+                throw new Error("window.grist n'est pas défini");
+            }
+
+            this.gristAPI = window.grist;
+            console.log("✅ Grist API configuré");
+            this.updateStatus("✅ Widget prêt - Cliquez sur 'Démarrer l'extraction'");
+            this.elements.startScrapeBtn.disabled = false;
+
+            // Initialiser la connexion au document
+            this.gristAPI.onRecord((record) => {
+                console.log("📨 Record reçu de Grist:", record);
+            });
+
+        } catch (error) {
+            console.error("❌ Erreur setup Grist:", error);
+            this.updateStatus(`❌ Erreur Grist: ${error.message}`);
+            this.elements.startScrapeBtn.disabled = true;
+        }
     }
 
     /**
      * Attache les event listeners
      */
     attachEventListeners() {
-        this.elements.startScrapeBtn.addEventListener('click', () => this.startScrape());
-        this.elements.resetBtn.addEventListener('click', () => this.reset());
+        if (this.elements.startScrapeBtn) {
+            this.elements.startScrapeBtn.addEventListener('click', () => this.startScrape());
+        }
+        if (this.elements.resetBtn) {
+            this.elements.resetBtn.addEventListener('click', () => this.reset());
+        }
     }
 
     /**
@@ -112,50 +142,60 @@ class ResanaScraperWidget {
                 throw new Error("Grist API n'est pas disponible");
             }
 
-            // Récupérer les données de la table Credentials
+            // Récupérer l'API du document
             const docAPI = this.gristAPI.getDocAPI();
+            console.log("📋 Récupération de la table Credentials...");
+
+            // Récupérer les données de la table Credentials
             const credentialsData = await docAPI.getTableData('Credentials');
             
-            console.log("📋 Données reçues de Credentials:", credentialsData);
+            console.log("📋 Données Credentials:", credentialsData);
 
             if (!credentialsData || credentialsData.length === 0) {
                 throw new Error("Aucune donnée trouvée dans la table Credentials");
             }
 
-            // Récupérer la première ligne (les colonnes sont des propriétés)
+            // Récupérer la première ligne
             const credentials = credentialsData[0];
-            
-            // Les noms de colonnes peuvent varier, cherchons les bonnes
+            console.log("🔍 Colonnes disponibles:", Object.keys(credentials));
+
+            // Chercher les colonnes de cookies (flexible)
             let cookiesPhp = null;
             let cookieInterstiAccess = null;
 
-            // Chercher les colonnes de cookies (cas insensible)
             for (const [key, value] of Object.entries(credentials)) {
+                if (value === undefined || value === null) continue;
+
                 const lowerKey = key.toLowerCase();
-                if (lowerKey.includes('php') || lowerKey === 'cookies_php') {
+                
+                if (lowerKey.includes('php') || lowerKey === 'cookies_php' || key === 'Cookie') {
                     cookiesPhp = value;
-                    console.log(`✅ Trouvé cookies_php: ${key}`);
+                    console.log(`✅ Trouvé cookies PHP dans "${key}": ${value.substring(0, 30)}...`);
                 }
+                
                 if (lowerKey.includes('interstis') || lowerKey.includes('access')) {
                     cookieInterstiAccess = value;
-                    console.log(`✅ Trouvé cookie_interstis_access: ${key}`);
+                    console.log(`✅ Trouvé Interstis Access dans "${key}": ${value.substring(0, 30)}...`);
                 }
             }
 
-            if (!cookiesPhp || !cookieInterstiAccess) {
-                console.error("Données credentials disponibles:", Object.keys(credentials));
-                throw new Error("Cookies manquants - Vérifiez les noms de colonnes dans la table Credentials");
+            if (!cookiesPhp) {
+                throw new Error(`Cookie PHP non trouvé. Colonnes disponibles: ${Object.keys(credentials).join(', ')}`);
+            }
+
+            if (!cookieInterstiAccess) {
+                console.warn("⚠️ Cookie Interstis Access non trouvé, on continue...");
             }
 
             this.cookies = {
                 php: cookiesPhp,
-                interstiAccess: cookieInterstiAccess
+                interstiAccess: cookieInterstiAccess || ''
             };
 
             console.log("✅ Credentials récupérés avec succès");
             return true;
         } catch (error) {
-            console.error("❌ Erreur lors de la récupération des credentials:", error);
+            console.error("❌ Erreur récupération credentials:", error);
             this.showError(`Erreur credentials: ${error.message}`);
             return false;
         }
@@ -166,14 +206,21 @@ class ResanaScraperWidget {
      */
     buildCookieString() {
         if (!this.cookies) return '';
-        return `php=${this.cookies.php}; interstis_access=${this.cookies.interstiAccess}`;
+        let cookieString = `php=${this.cookies.php}`;
+        if (this.cookies.interstiAccess) {
+            cookieString += `; interstis_access=${this.cookies.interstiAccess}`;
+        }
+        return cookieString;
     }
 
     /**
      * Démarre le scraping
      */
     async startScrape() {
-        if (this.isRunning) return;
+        if (this.isRunning) {
+            this.showError("Un scraping est déjà en cours...");
+            return;
+        }
 
         // Vérifier que Grist est disponible
         if (!this.gristAPI) {
@@ -197,11 +244,7 @@ class ResanaScraperWidget {
             // Récupérer les credentials
             const credOk = await this.getCredentialsFromGrist();
             if (!credOk) {
-                this.isRunning = false;
-                this.elements.startScrapeBtn.disabled = false;
-                this.elements.configSection.style.display = 'block';
-                this.elements.progressSection.style.display = 'none';
-                return;
+                throw new Error("Impossible de récupérer les credentials");
             }
 
             const maxContacts = parseInt(this.elements.maxContacts.value) || 500;
@@ -261,7 +304,7 @@ class ResanaScraperWidget {
             this.displayResults();
 
         } catch (error) {
-            console.error("❌ Erreur:", error);
+            console.error("❌ Erreur scraping:", error);
             this.showError(error.message);
             this.elements.configSection.style.display = 'block';
             this.elements.progressSection.style.display = 'none';
@@ -427,11 +470,12 @@ class ResanaScraperWidget {
             }
 
             const docAPI = this.gristAPI.getDocAPI();
+            console.log(`📝 Ajout de ${records.length} enregistrements à ${this.targetTable}...`);
 
             // Ajouter les enregistrements dans la table Annuaire_brut_widget
             const addResult = await docAPI.addRows(this.targetTable, records);
 
-            this.writtenCount = addResult.rowIds ? addResult.rowIds.length : records.length;
+            this.writtenCount = addResult ? (addResult.rowIds ? addResult.rowIds.length : records.length) : records.length;
             this.elements.statWritten.textContent = this.writtenCount;
 
             console.log(`✅ ${this.writtenCount} enregistrements écrits dans ${this.targetTable}`);
@@ -470,6 +514,7 @@ class ResanaScraperWidget {
             this.elements.alertsList.innerHTML = this.oversizedProfiles
                 .map(p => `<div class="alert-item"><strong>${p.name}</strong>: ${p.count} périmètres (max 10 supportés)</div>`)
                 .join('');
+            this.elements.alertsSection.style.display = 'block';
         } else if (this.elements.extractPerimetres.checked) {
             this.elements.alertsSection.style.display = 'none';
         }
@@ -483,15 +528,21 @@ class ResanaScraperWidget {
      */
     updateProgress(current, total) {
         const percent = total > 0 ? (current / total) * 100 : 0;
-        this.elements.progressFill.style.width = percent + '%';
-        this.elements.progressText.textContent = `${current}/${total} contacts`;
+        if (this.elements.progressFill) {
+            this.elements.progressFill.style.width = percent + '%';
+        }
+        if (this.elements.progressText) {
+            this.elements.progressText.textContent = `${current}/${total} contacts`;
+        }
     }
 
     /**
      * Met à jour le message de statut
      */
     updateStatus(message) {
-        this.elements.statusMessage.textContent = message;
+        if (this.elements.statusMessage) {
+            this.elements.statusMessage.textContent = message;
+        }
         console.log(message);
     }
 
