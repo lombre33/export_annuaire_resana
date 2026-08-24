@@ -13,6 +13,7 @@ class ResanaScraperWidget {
         this.headers = null;
         this.writtenCount = 0;
         this.targetTable = "Annuaire_brut_widget"; // TABLE DE DESTINATION
+        this.gristAPI = null;
 
         this.initializeUI();
         this.initializeGrist();
@@ -61,21 +62,17 @@ class ResanaScraperWidget {
      * Initialise Grist API
      */
     initializeGrist() {
-        if (!window.grist) {
-            console.error("❌ Grist API non disponible");
-            this.showError("Widget Grist non disponible");
-            return;
-        }
-
-        grist.onRecord((record) => {
-            console.log("Enregistrement reçu:", record);
+        return new Promise((resolve) => {
+            // Vérifier si Grist est disponible
+            if (typeof grist !== 'undefined') {
+                this.gristAPI = grist;
+                console.log("✅ Grist API initialisée");
+                resolve(true);
+            } else {
+                console.warn("⚠️ Grist API non disponible - Mode test");
+                resolve(false);
+            }
         });
-
-        grist.onOptions((options) => {
-            console.log("Options reçues:", options);
-        });
-
-        console.log("✅ Grist API initialisée");
     }
 
     /**
@@ -93,8 +90,12 @@ class ResanaScraperWidget {
         try {
             this.updateStatus("🔐 Récupération des credentials...");
 
+            if (!this.gristAPI) {
+                throw new Error("Grist API n'est pas disponible");
+            }
+
             // Récupérer les données de la table Credentials
-            const credentialsData = await grist.getDocAPI().getTableData('Credentials');
+            const credentialsData = await this.gristAPI.getDocAPI().getTableData('Credentials');
             
             if (!credentialsData || credentialsData.length === 0) {
                 throw new Error("Aucune donnée trouvée dans la table Credentials");
@@ -137,6 +138,12 @@ class ResanaScraperWidget {
      */
     async startScrape() {
         if (this.isRunning) return;
+
+        // Vérifier que Grist est disponible
+        if (!this.gristAPI) {
+            this.showError("Grist API n'est pas disponible. Assurez-vous que ce widget est inséré dans un document Grist.");
+            return;
+        }
 
         this.isRunning = true;
         this.elements.startScrapeBtn.disabled = true;
@@ -370,7 +377,11 @@ class ResanaScraperWidget {
                 throw new Error("Aucun enregistrement à écrire");
             }
 
-            const docApi = grist.getDocAPI();
+            if (!this.gristAPI) {
+                throw new Error("Grist API n'est pas disponible");
+            }
+
+            const docApi = this.gristAPI.getDocAPI();
 
             // Ajouter les enregistrements dans la table Annuaire_brut_widget
             const addResult = await docApi.addRows(this.targetTable, records);
