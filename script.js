@@ -42,7 +42,7 @@ async function getCredentialsFromGrist() {
   try {
     console.log("🔐 Récupération des credentials...");
     
-    // ✅ Utiliser grist.docApi directement (pas this.gristAPI)
+    // ✅ Récupérer la table Credentials
     const credentialsTable = await grist.docApi.fetchTable('Credentials');
     
     if (!credentialsTable || !credentialsTable.id || credentialsTable.id.length === 0) {
@@ -57,8 +57,9 @@ async function getCredentialsFromGrist() {
       throw new Error("Aucun record trouvé dans Credentials");
     }
 
-    const cookiesPhp = credentials.Cookies_PHP || credentials.Cookie_PHP || credentials.cookies_php;
-    const cookieInterstiAccess = credentials.Cookie_Interstis_Access || credentials.Interstis_Access;
+    // ✅ Noms EXACTS des colonnes
+    const cookiesPhp = credentials.Cookies_php;
+    const cookieInterstiAccess = credentials.cookie_interstis_access;
 
     if (!cookiesPhp) {
       throw new Error(`Cookie PHP non trouvé. Colonnes disponibles: ${Object.keys(credentials).join(', ')}`);
@@ -106,11 +107,10 @@ async function scrapeAnnuaire(url, filters, credentials) {
   try {
     console.log("🕷️ Lancement du scraping...", { url, filters });
 
-    // Exemple basique - à adapter selon votre structure Resana
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'Cookie': `PHP_SESSION=${credentials.php}`
+        'Cookie': `PHPSESSID=${credentials.php}`
       }
     });
 
@@ -135,30 +135,47 @@ async function scrapeAnnuaire(url, filters, credentials) {
    ========================================================= */
 
 function parseAnnuaire(html, filters) {
-  // À adapter selon la structure HTML de Resana
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
   
   const records = [];
-  const rows = doc.querySelectorAll('tr[data-person]'); // exemple
+  const rows = doc.querySelectorAll('tr[data-person]'); // À adapter selon Resana
 
-  rows.forEach((row) => {
-    const prenom = row.querySelector('[data-prenom]')?.textContent.trim() || '';
-    const nom = row.querySelector('[data-nom]')?.textContent.trim() || '';
-    const email = row.querySelector('[data-email]')?.textContent.trim() || '';
-    const telephone = row.querySelector('[data-tel]')?.textContent.trim() || '';
+  rows.forEach((row, index) => {
+    try {
+      const prenom = row.querySelector('[data-prenom]')?.textContent.trim() || '';
+      const nom = row.querySelector('[data-nom]')?.textContent.trim() || '';
+      const email = row.querySelector('[data-email]')?.textContent.trim() || '';
+      const lien_avatar = row.querySelector('[data-avatar]')?.getAttribute('src') || '';
+      const fonction = row.querySelector('[data-fonction]')?.textContent.trim() || '';
+      const etablissement2 = row.querySelector('[data-etablissement2]')?.textContent.trim() || '';
+      const numero_de_telephone = row.querySelector('[data-tel]')?.textContent.trim() || '';
 
-    if (!prenom || !nom) return; // sauter si données incomplètes
+      if (!prenom || !nom) return; // sauter si données incomplètes
 
-    // Appliquer les filtres si fournis
-    if (filters) {
-      const filterList = filters.split(',').map(f => f.trim().toLowerCase());
-      const haystack = `${prenom} ${nom} ${email}`.toLowerCase();
-      if (!filterList.some(f => haystack.includes(f))) return;
+      // Appliquer les filtres si fournis
+      if (filters) {
+        const filterList = filters.split(',').map(f => f.trim().toLowerCase());
+        const haystack = `${prenom} ${nom} ${email} ${fonction}`.toLowerCase();
+        if (!filterList.some(f => haystack.includes(f))) return;
+      }
+
+      records.push({
+        Prenom: prenom,
+        Nom: nom,
+        Email: email,
+        Lien_avatar: lien_avatar,
+        fonction: fonction,
+        Etablissement2: etablissement2,
+        numero_de_telephone: numero_de_telephone ? parseInt(numero_de_telephone) : 0,
+        Genre: '', // À remplir depuis le scraping si disponible
+        Justification: ''
+      });
+
+      updateProgressUI(records.length);
+    } catch (err) {
+      console.warn("⚠️ Erreur parsing ligne", index, err);
     }
-
-    records.push({ prenom, nom, email, telephone });
-    updateProgressUI(records.length);
   });
 
   return records;
@@ -172,8 +189,8 @@ async function saveScrapedData(scrapedData) {
   try {
     console.log(`💾 Sauvegarde de ${scrapedData.length} enregistrements...`);
 
-    // Récupérer les enregistrements existants pour vérifier les doublons
-    const existingTable = await grist.docApi.fetchTable('Annuaire');
+    // Récupérer les enregistrements existants
+    const existingTable = await grist.docApi.fetchTable('Annuaire_brut_widget');
     const existing = toRecords(existingTable);
     const shouldUpdate = document.getElementById('checkbox-update').checked;
 
@@ -181,37 +198,47 @@ async function saveScrapedData(scrapedData) {
     const actions = [];
 
     for (const record of scrapedData) {
-      // Chercher si la personne existe déjà (par email ou nom+prénom)
-      const existing_record = existing.find(ex =>
-        (ex.Email === record.email && record.email) ||
-        (ex.Prenom === record.prenom && ex.NOM === record.nom)
+      // Chercher si la personne existe déjà
+      const existingRecord = existing.find(ex =>
+        (ex.Email === record.Email && record.Email) ||
+        (ex.Prenom === record.Prenom && ex.Nom === record.Nom)
       );
 
-      if (existing_record && shouldUpdate) {
-        // Mise à jour
+      if (existingRecord && shouldUpdate) {
+        // ✅ Mise à jour avec les NOMS EXACTS
         actions.push([
           'UpdateRecord',
-          'Annuaire',
-          existing_record.id,
+          'Annuaire_brut_widget',
+          existingRecord.id,
           {
-            Prenom: record.prenom,
-            NOM: record.nom,
-            Email: record.email,
-            Telephone: record.telephone
+            Prenom: record.Prenom,
+            Nom: record.Nom,
+            Email: record.Email,
+            Lien_avatar: record.Lien_avatar,
+            fonction: record.fonction,
+            Etablissement2: record.Etablissement2,
+            numero_de_telephone: record.numero_de_telephone,
+            Genre: record.Genre,
+            Justification: record.Justification
           }
         ]);
         state.results.updated++;
-      } else if (!existing_record) {
-        // Ajout
+      } else if (!existingRecord) {
+        // ✅ Ajout avec les NOMS EXACTS
         actions.push([
           'AddRecord',
-          'Annuaire',
+          'Annuaire_brut_widget',
           null,
           {
-            Prenom: record.prenom,
-            NOM: record.nom,
-            Email: record.email,
-            Telephone: record.telephone
+            Prenom: record.Prenom,
+            Nom: record.Nom,
+            Email: record.Email,
+            Lien_avatar: record.Lien_avatar,
+            fonction: record.fonction,
+            Etablissement2: record.Etablissement2,
+            numero_de_telephone: record.numero_de_telephone,
+            Genre: record.Genre,
+            Justification: record.Justification
           }
         ]);
         state.results.imported++;
@@ -222,6 +249,8 @@ async function saveScrapedData(scrapedData) {
     if (actions.length > 0) {
       await grist.docApi.applyUserActions(actions);
       console.log(`✅ ${actions.length} actions appliquées`);
+    } else {
+      console.log("ℹ️ Aucune action à appliquer (doublons détectés)");
     }
 
   } catch (error) {
