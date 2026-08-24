@@ -11,7 +11,6 @@ class ResanaScraperWidget {
         this.isRunning = false;
         this.cookies = null;
         this.headers = null;
-        this.configData = null;
         this.writtenCount = 0;
 
         this.initializeUI();
@@ -25,7 +24,6 @@ class ResanaScraperWidget {
     initializeUI() {
         this.elements = {
             // Config
-            tableSelect: document.getElementById('tableSelect'),
             maxContacts: document.getElementById('maxContacts'),
             extractOrganisation: document.getElementById('extractOrganisation'),
             extractPerimetres: document.getElementById('extractPerimetres'),
@@ -76,37 +74,7 @@ class ResanaScraperWidget {
             console.log("Options reçues:", options);
         });
 
-        // Récupérer les tables disponibles
-        this.loadConfigTables();
-    }
-
-    /**
-     * Charge les tables de configuration disponibles
-     */
-    async loadConfigTables() {
-        try {
-            // Dans Grist, on récupère les informations via getDocInfo
-            const docInfo = await grist.api.getDocInfo();
-            const tables = docInfo.tables || [];
-
-            // Chercher une table nommée "Config" ou similaire
-            const configTables = tables.filter(t => 
-                t.name.toLowerCase().includes('config') || 
-                t.name.toLowerCase().includes('credential') ||
-                t.name.toLowerCase().includes('resana')
-            );
-
-            if (configTables.length > 0) {
-                this.elements.tableSelect.innerHTML = configTables.map(t => 
-                    `<option value="${t.name}">${t.name}</option>`
-                ).join('');
-            } else {
-                console.warn("⚠️ Aucune table de configuration trouvée");
-                this.elements.tableSelect.innerHTML = '<option value="">⚠️ Aucune table trouvée</option>';
-            }
-        } catch (error) {
-            console.error("Erreur lors du chargement des tables:", error);
-        }
+        console.log("✅ Grist API initialisée");
     }
 
     /**
@@ -118,47 +86,52 @@ class ResanaScraperWidget {
     }
 
     /**
-     * Récupère les credentials depuis la table Grist
+     * Récupère les credentials depuis la table Credentials
      */
-    async getCredentialsFromGrist(tableName) {
+    async getCredentialsFromGrist() {
         try {
-            if (!tableName) {
-                throw new Error("Veuillez sélectionner une table de configuration");
-            }
+            this.updateStatus("🔐 Récupération des credentials...");
 
-            // Récupérer les données de la table
-            const records = await grist.api.getRecords(tableName);
+            // Récupérer les enregistrements de la table Credentials
+            const records = await grist.api.getRecords('Credentials');
             
             if (!records || records.length === 0) {
-                throw new Error("Aucune donnée dans la table de configuration");
+                throw new Error("Aucun credential trouvé dans la table 'Credentials'");
             }
 
-            // Supposer que la première ligne contient les credentials
-            const config = records[0];
+            // Supposer que le premier enregistrement contient les credentials
+            const credentialRecord = records[0];
             
+            // Extraire les cookies selon la structure de la table
+            const phpSessionId = credentialRecord.Cookies_php;
+            const interstisToken = credentialRecord.cookie_interstis_access;
+
+            if (!phpSessionId || !interstisToken) {
+                throw new Error("Cookies incomplets dans la table Credentials");
+            }
+
+            // Stocker les cookies
             this.cookies = {
-                PHPSESSID: config.phpsessid || config.PHPSESSID,
-                interstis_access: config.token || config.interstis_access
+                PHPSESSID: phpSessionId,
+                interstis_access: interstisToken
             };
 
+            // Initialiser les headers avec les cookies
             this.headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0",
                 "Accept": "application/json, text/javascript, */*; q=0.01",
                 "X-Requested-With": "XMLHttpRequest",
-                "X-CSRF-TOKEN": config.csrf || config.CSRF,
+                "X-CSRF-TOKEN": "de6188ba05f50df420621ced195b247168f66008b1e0780dd643229ce9b476c4",
                 "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
                 "Referer": "https://resana.numerique.gouv.fr/public/perimetre?page=contacts",
             };
 
-            if (!this.cookies.PHPSESSID || !this.cookies.interstis_access) {
-                throw new Error("Credentials incomplets dans la table");
-            }
-
-            this.configData = config;
+            console.log("✅ Credentials récupérés avec succès");
             return true;
 
         } catch (error) {
-            this.showError(`Erreur credentials: ${error.message}`);
+            this.showError(`Erreur récupération credentials: ${error.message}`);
+            console.error("❌", error);
             return false;
         }
     }
@@ -169,14 +142,8 @@ class ResanaScraperWidget {
     async startScrape() {
         if (this.isRunning) return;
 
-        const tableName = this.elements.tableSelect.value;
-        if (!tableName) {
-            this.showError("Sélectionnez une table de configuration");
-            return;
-        }
-
-        // Récupérer les credentials
-        if (!(await this.getCredentialsFromGrist(tableName))) {
+        // Récupérer les credentials depuis la table Credentials
+        if (!(await this.getCredentialsFromGrist())) {
             return;
         }
 
@@ -215,46 +182,60 @@ class ResanaScraperWidget {
         let offset = 0;
         let page = 1;
         const maxContacts = parseInt(this.elements.maxContacts.value);
-        const socket = await this.getSocket();
+        
+        try {
+            const socket = await this.getSocket();
 
-        while (this.data.length < maxContacts) {
-            try {
-                const formData = new FormData();
-                formData.append("recherche", "");
-                formData.append("retourJSON", "true");
-                formData.append("offset", offset);
-                formData.append("perimetreId", "");
-                formData.append("perimetreMereId", "19374");
+            while (this.data.length < maxContacts) {
+                try {
+                    const formData = new FormData();
+                    formData.append("recherche", "");
+                    formData.append("retourJSON", "true");
+                    formData.append("offset", offset);
+                    formData.append("perimetreId", "");
+                    formData.append("perimetreMereId", "19374");
 
-                const response = await fetch(
-                    `https://resana.numerique.gouv.fr/public/utilisateur/listerContacts?socket=${socket}&peri=out`,
-                    {
-                        method: 'POST',
-                        headers: this.headers,
-                        body: formData,
-                        credentials: 'include'
+                    const response = await fetch(
+                        `https://resana.numerique.gouv.fr/public/utilisateur/listerContacts?socket=${socket}&peri=out`,
+                        {
+                            method: 'POST',
+                            headers: {
+                                ...this.headers,
+                                'Cookie': this.buildCookieString()
+                            },
+                            body: formData,
+                            credentials: 'include'
+                        }
+                    );
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
-                );
 
-                const jsonData = await response.json();
-                const contacts = Array.isArray(jsonData) ? jsonData : (jsonData.contacts || []);
+                    const jsonData = await response.json();
+                    const contacts = Array.isArray(jsonData) ? jsonData : (jsonData.contacts || []);
 
-                if (!contacts.length) break;
+                    if (!contacts.length) break;
 
-                this.data.push(...contacts);
-                this.updateProgress(this.data.length, maxContacts);
-                this.updateStatus(`📥 Page ${page}: ${contacts.length} contact(s)`);
+                    this.data.push(...contacts);
+                    this.updateProgress(this.data.length, maxContacts);
+                    this.updateStatus(`📥 Page ${page}: ${contacts.length} contact(s)`);
 
-                offset += 50;
-                page++;
-                await this.sleep(300);
+                    offset += 50;
+                    page++;
+                    await this.sleep(300);
 
-            } catch (error) {
-                this.errors.push(`Page ${page}: ${error.message}`);
+                } catch (error) {
+                    this.errors.push(`Page ${page}: ${error.message}`);
+                    console.error("❌ Erreur page:", error);
+                }
             }
-        }
 
-        this.elements.statContacts.textContent = this.data.length;
+            this.elements.statContacts.textContent = this.data.length;
+
+        } catch (error) {
+            throw new Error(`Erreur récupération contacts: ${error.message}`);
+        }
     }
 
     /**
@@ -263,49 +244,66 @@ class ResanaScraperWidget {
     async fetchContactDetails() {
         this.updateStatus("📋 Récupération des détails des profils...");
 
-        const socket = await this.getSocket();
+        try {
+            const socket = await this.getSocket();
 
-        for (let idx = 0; idx < this.data.length; idx++) {
-            try {
-                const contact = this.data[idx];
+            for (let idx = 0; idx < this.data.length; idx++) {
+                try {
+                    const contact = this.data[idx];
 
-                const response = await fetch(
-                    `https://resana.numerique.gouv.fr/public/utilisateur/consulter/${contact.id}?socket=${socket}&peri=out`,
-                    {
-                        headers: this.headers,
-                        credentials: 'include'
+                    const response = await fetch(
+                        `https://resana.numerique.gouv.fr/public/utilisateur/consulter/${contact.id}?socket=${socket}&peri=out`,
+                        {
+                            headers: {
+                                ...this.headers,
+                                'Cookie': this.buildCookieString()
+                            },
+                            credentials: 'include'
+                        }
+                    );
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
                     }
-                );
 
-                const html = await response.text();
+                    const html = await response.text();
 
-                if (this.elements.extractOrganisation.checked) {
-                    contact.organisation = this.extractOrganisation(html);
-                }
-
-                if (this.elements.extractPerimetres.checked) {
-                    contact.perimetres_list = this.extractPerimetres(html);
-                    if (contact.perimetres_list.length > 10) {
-                        this.oversizedProfiles.push({
-                            name: `${contact.prenom} ${contact.nom}`,
-                            id: contact.id,
-                            count: contact.perimetres_list.length
-                        });
+                    if (this.elements.extractOrganisation.checked) {
+                        contact.organisation = this.extractOrganisation(html);
                     }
+
+                    if (this.elements.extractPerimetres.checked) {
+                        contact.perimetres_list = this.extractPerimetres(html);
+                        if (contact.perimetres_list.length > 10) {
+                            this.oversizedProfiles.push({
+                                name: `${contact.prenom} ${contact.nom}`,
+                                id: contact.id,
+                                count: contact.perimetres_list.length
+                            });
+                        }
+                        this.elements.statPerimetres.textContent = Math.max(
+                            parseInt(this.elements.statPerimetres.textContent || 0),
+                            contact.perimetres_list.length
+                        );
+                    }
+
+                    if (this.elements.extractCompetences.checked) {
+                        contact.competences_list = this.extractCompetences(html);
+                    }
+
+                    this.updateProgress(idx + 1, this.data.length);
+                    this.updateStatus(`📋 [${idx + 1}/${this.data.length}] ${contact.prenom} ${contact.nom}`);
+
+                    await this.sleep(150);
+
+                } catch (error) {
+                    this.errors.push(`Contact ${idx} (${this.data[idx].prenom} ${this.data[idx].nom}): ${error.message}`);
+                    console.error("❌ Erreur contact:", error);
                 }
-
-                if (this.elements.extractCompetences.checked) {
-                    contact.competences_list = this.extractCompetences(html);
-                }
-
-                this.updateProgress(idx + 1, this.data.length);
-                this.updateStatus(`📋 [${idx + 1}/${this.data.length}] ${contact.prenom} ${contact.nom}`);
-
-                await this.sleep(150);
-
-            } catch (error) {
-                this.errors.push(`Contact ${idx}: ${error.message}`);
             }
+
+        } catch (error) {
+            throw new Error(`Erreur récupération détails: ${error.message}`);
         }
     }
 
@@ -315,57 +313,67 @@ class ResanaScraperWidget {
     async writeToGrist() {
         this.updateStatus("📤 Écriture des données dans Grist...");
 
-        const tableName = 'Annuaire'; // À ajuster selon votre schéma
-        const records = [];
-
-        for (let idx = 0; idx < this.data.length; idx++) {
-            try {
-                const contact = this.data[idx];
-
-                const fields = {
-                    Prenom: contact.prenom || '',
-                    Nom: contact.nom || '',
-                    Email: contact.email || '',
-                    fonction: contact.fonction || '',
-                    numero_de_telephone: contact.telephone || '',
-                    Etablissement2: contact.organisation || '',
-                };
-
-                // Ajouter les périmètres (références)
-                const perimetres = contact.perimetres_list || [];
-                for (let i = 0; i < 15; i++) {
-                    const fieldName = `perimetre_${i + 1}`;
-                    fields[fieldName] = perimetres[i] || '';
-                }
-
-                // Ajouter les compétences (texte)
-                const competences = contact.competences_list || [];
-                for (let i = 0; i < 15; i++) {
-                    const fieldName = `competences_${i + 1}`;
-                    fields[fieldName] = competences[i] || '';
-                }
-
-                records.push({
-                    fields: fields
-                });
-
-                this.writtenCount++;
-                this.elements.statWritten.textContent = this.writtenCount;
-                this.updateProgress(idx + 1, this.data.length);
-                this.updateStatus(`📤 [${idx + 1}/${this.data.length}] Écriture ${contact.prenom} ${contact.nom}`);
-
-            } catch (error) {
-                this.errors.push(`Écriture contact ${idx}: ${error.message}`);
-            }
-        }
-
-        // Envoyer les enregistrements à Grist par batch
         try {
-            await grist.api.bulkUploadRecords(tableName, records);
-            console.log("✅ Données écrites dans Grist");
+            const tableName = 'Annuaire';
+            const records = [];
+
+            for (let idx = 0; idx < this.data.length; idx++) {
+                try {
+                    const contact = this.data[idx];
+
+                    const fields = {
+                        Prenom: contact.prenom || '',
+                        Nom: contact.nom || '',
+                        Email: contact.email || '',
+                        fonction: contact.fonction || '',
+                        numero_de_telephone: contact.telephone || '',
+                        Etablissement2: contact.organisation || '',
+                        Lien_avatar: contact.avatar || '',
+                    };
+
+                    // Ajouter les périmètres (références) - jusqu'à 15
+                    const perimetres = contact.perimetres_list || [];
+                    for (let i = 0; i < 15; i++) {
+                        const fieldName = `perimetre_${i + 1}`;
+                        fields[fieldName] = perimetres[i] || '';
+                    }
+
+                    // Ajouter les compétences (texte) - jusqu'à 15
+                    const competences = contact.competences_list || [];
+                    for (let i = 0; i < 15; i++) {
+                        const fieldName = `competences_${i + 1}`;
+                        fields[fieldName] = competences[i] || '';
+                    }
+
+                    records.push({
+                        fields: fields
+                    });
+
+                    this.writtenCount++;
+                    this.elements.statWritten.textContent = this.writtenCount;
+                    this.updateProgress(idx + 1, this.data.length);
+                    this.updateStatus(`📤 [${idx + 1}/${this.data.length}] ${contact.prenom} ${contact.nom}`);
+
+                } catch (error) {
+                    this.errors.push(`Préparation contact ${idx}: ${error.message}`);
+                }
+            }
+
+            // Envoyer les enregistrements à Grist par batch
+            if (records.length > 0) {
+                try {
+                    await grist.api.bulkUploadRecords(tableName, records);
+                    console.log(`✅ ${records.length} enregistrements écrits dans Grist`);
+                    this.writtenCount = records.length;
+                    this.elements.statWritten.textContent = this.writtenCount;
+                } catch (error) {
+                    this.errors.push(`Erreur écriture Grist: ${error.message}`);
+                    console.error("❌ Erreur lors de l'écriture:", error);
+                }
+            }
+
         } catch (error) {
-            this.errors.push(`Erreur écriture Grist: ${error.message}`);
-            console.error("❌ Erreur lors de l'écriture:", error);
+            throw new Error(`Erreur lors de l'écriture: ${error.message}`);
         }
     }
 
@@ -400,15 +408,22 @@ class ResanaScraperWidget {
         const competences = [];
         let match;
 
+        // Debug : afficher la valeur brute avant parsing
+        const debugMatches = html.match(/var competence = JSON\.parse\('[^']*'\)/g) || [];
+        if (debugMatches.length > 0) {
+            console.log("🔍 DEBUG - Compétences trouvées (valeur brute):", debugMatches);
+        }
+
         while ((match = pattern.exec(html)) !== null) {
             try {
                 const jsonStr = match[1].replace(/\\"/g, '"');
+                console.log("🔍 DEBUG - Parsing compétence:", jsonStr);
                 const data = JSON.parse(jsonStr);
                 if (data.libelle) {
                     competences.push(data.libelle.trim());
                 }
             } catch (e) {
-                console.error("Erreur parsing compétence:", e);
+                console.error("❌ Erreur parsing compétence:", e);
             }
         }
 
@@ -421,7 +436,10 @@ class ResanaScraperWidget {
     async getSocket() {
         try {
             const response = await fetch('https://resana.numerique.gouv.fr/public/perimetre?page=contacts', {
-                headers: this.headers,
+                headers: {
+                    ...this.headers,
+                    'Cookie': this.buildCookieString()
+                },
                 credentials: 'include'
             });
 
@@ -435,15 +453,23 @@ class ResanaScraperWidget {
     }
 
     /**
+     * Construit la chaîne de cookies
+     */
+    buildCookieString() {
+        if (!this.cookies) return '';
+        return `PHPSESSID=${this.cookies.PHPSESSID}; interstis_access=${this.cookies.interstis_access}`;
+    }
+
+    /**
      * Génère le résumé des résultats
      */
     generateResults() {
         const summary = `
             ✅ <strong>${this.data.length}</strong> contacts extraits<br>
             📝 <strong>${this.writtenCount}</strong> contacts écrits dans Grist<br>
-            ${this.elements.extractPerimetres.checked ? `📍 Périmètres: 15 colonnes<br>` : ''}
-            ${this.elements.extractCompetences.checked ? `🎓 Compétences: 15 colonnes<br>` : ''}
-            ${this.errors.length > 0 ? `⚠️ ${this.errors.length} erreur(s)` : ''}
+            ${this.elements.extractPerimetres.checked ? `📍 Périmètres: jusqu'à 15 colonnes<br>` : ''}
+            ${this.elements.extractCompetences.checked ? `🎓 Compétences: jusqu'à 15 colonnes<br>` : ''}
+            ${this.errors.length > 0 ? `⚠️ ${this.errors.length} erreur(s)` : '✅ Aucune erreur'}
         `;
 
         this.elements.resultsSummary.innerHTML = summary;
@@ -453,8 +479,10 @@ class ResanaScraperWidget {
         if (this.oversizedProfiles.length > 0) {
             this.elements.alertsSection.style.display = 'block';
             this.elements.alertsList.innerHTML = this.oversizedProfiles
-                .map(p => `<div class="alert-item">⚠️ ${p.name}: ${p.count} périmètres</div>`)
+                .map(p => `<div class="alert-item">⚠️ <strong>${p.name}</strong>: ${p.count} périmètres (max 10 supportés)</div>`)
                 .join('');
+        } else if (this.elements.extractPerimetres.checked) {
+            this.elements.alertsSection.style.display = 'none';
         }
 
         this.updateProgress(this.data.length, this.data.length);
@@ -475,6 +503,7 @@ class ResanaScraperWidget {
      */
     updateStatus(message) {
         this.elements.statusMessage.textContent = message;
+        console.log(message);
     }
 
     /**
@@ -499,9 +528,10 @@ class ResanaScraperWidget {
         this.elements.resultsSection.style.display = 'none';
 
         this.updateProgress(0, 0);
-        this.updateStatus("Prêt");
+        this.updateStatus("🔄 Widget réinitialisé - Prêt pour une nouvelle extraction");
         this.elements.statContacts.textContent = '0';
         this.elements.statWritten.textContent = '0';
+        this.elements.statPerimetres.textContent = '0';
         this.elements.statErrors.textContent = '0';
     }
 
