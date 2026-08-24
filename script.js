@@ -1,39 +1,12 @@
 /* =========================================================
-   ATTENDRE QUE GRIST SOIT CHARGÉ
-   ========================================================= */
-
-function waitForGrist() {
-  return new Promise((resolve) => {
-    if (typeof grist !== 'undefined') {
-      console.log("✅ Grist déjà chargé");
-      resolve();
-      return;
-    }
-
-    const maxAttempts = 50;
-    let attempts = 0;
-
-    const interval = setInterval(() => {
-      attempts++;
-      if (typeof grist !== 'undefined') {
-        console.log("✅ Grist détecté");
-        clearInterval(interval);
-        resolve();
-      } else if (attempts >= maxAttempts) {
-        console.error("❌ Grist non trouvé après 5s");
-        clearInterval(interval);
-        resolve(); // Continue quand même
-      }
-    }, 100);
-  });
-}
-
-/* =========================================================
    ÉTAT GLOBAL
    ========================================================= */
 
 const state = {
   isRunning: false,
+  gristAPI: null,
+  credentialsTable: null,
+  annuaireTable: null,
   results: {
     imported: 0,
     updated: 0,
@@ -48,65 +21,119 @@ const state = {
 
 async function initializeGrist() {
   return new Promise((resolve) => {
-    console.log("🔄 Initialisation Grist...");
-    
     if (typeof grist === 'undefined') {
-      console.error("❌ Grist non disponible");
+      console.error("❌ Objet 'grist' non trouvé");
       resolve(false);
       return;
     }
 
-    grist.ready({
-      requiredAccess: 'full',
-      onError: (err) => {
-        console.error("❌ Erreur Grist:", err);
-        resolve(false);
-      }
+    console.log("✅ Objet 'grist' trouvé");
+    state.gristAPI = grist;
+
+    // Écouter les mises à jour du document
+    grist.onRecord(async (record) => {
+      console.log("📨 Record reçu de Grist:", record);
     });
 
-    console.log("✅ Grist ready");
+    // Signal de prêt
+    grist.ready();
+    console.log("✅ Grist initialisé et ready");
     resolve(true);
   });
 }
 
 /* =========================================================
-   RÉCUPÉRATION DES CREDENTIALS
+   RÉCUPÉRER LES CREDENTIALS DEPUIS GRIST
    ========================================================= */
 
 async function getCredentialsFromGrist() {
+  console.log("🔐 Récupération des credentials depuis Grist...");
+  
   try {
-    console.log("🔐 Récupération des credentials depuis Grist...");
+    if (!state.gristAPI) {
+      throw new Error("Grist non initialisé");
+    }
+
+    // Récupérer les données de la table Credentials
+    const docAPI = state.gristAPI.docAPI;
+    const credentialsData = await docAPI.getRecords('Credentials');
     
-    if (typeof grist === 'undefined') {
-      throw new Error("Grist n'est pas disponible");
-    }
-
-    // Récupérer la table Credentials
-    const table = await grist.docApi.fetchTable('Credentials');
-    
-    console.log("📊 Table Credentials reçue:", table);
-
-    if (!table.id || table.id.length === 0) {
-      throw new Error("Table Credentials vide");
-    }
-
-    // Premier record
-    const idx = 0;
-    const credentials = {
-      php: table.Cookies_php?.[idx] || '',
-      access: table.cookie_interstis_access?.[idx] || ''
-    };
-
-    if (!credentials.php || !credentials.access) {
-      throw new Error("Credentials manquantes dans Grist");
-    }
-
-    console.log("✅ Credentials récupérées");
-    return credentials;
+    console.log("✅ Credentials récupérés:", credentialsData);
+    return credentialsData.records[0] || {};
 
   } catch (error) {
     console.error("❌ Erreur récupération credentials:", error);
     throw new Error("Impossible de récupérer les credentials: " + error.message);
+  }
+}
+
+/* =========================================================
+   SCRAPER L'ANNUAIRE
+   ========================================================= */
+
+async function scrapeAnnuaire(url, filters = '') {
+  console.log("🕷️ Scraping:", url);
+  console.log("📋 Filtres:", filters);
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    
+    const data = await response.json();
+    
+    // Appliquer les filtres si nécessaire
+    let filtered = data;
+    if (filters) {
+      const filterList = filters.split(',').map(f => f.trim().toLowerCase());
+      filtered = data.filter(item => 
+        filterList.some(f => 
+          JSON.stringify(item).toLowerCase().includes(f)
+        )
+      );
+    }
+
+    console.log("📊 Données scrapées:", filtered.length, "enregistrements");
+    return filtered;
+
+  } catch (error) {
+    console.error("❌ Erreur scraping:", error);
+    throw new Error("Impossible de scraper l'URL: " + error.message);
+  }
+}
+
+/* =========================================================
+   SAUVEGARDER DANS GRIST
+   ========================================================= */
+
+async function saveToGrist(records) {
+  console.log("💾 Sauvegarde de", records.length, "enregistrements dans Grist...");
+
+  try {
+    if (!state.gristAPI) {
+      throw new Error("Grist non initialisé");
+    }
+
+    const docAPI = state.gristAPI.docAPI;
+    
+    // Préparer les données pour Grist (adapter selon ta structure)
+    const recordsToAdd = records.map(item => ({
+      Prenom: item.prenom || item.firstName || '',
+      Nom: item.nom || item.lastName || '',
+      Email: item.email || '',
+      Telephone: item.telephone || item.phone || '',
+      Service: item.service || '',
+      // Ajoute d'autres colonnes selon ta table Annuaire
+    }));
+
+    // Ajouter les enregistrements
+    const result = await docAPI.addRecords('Annuaire', recordsToAdd);
+
+    console.log("✅ Enregistrements ajoutés:", result);
+    state.results.imported = records.length;
+
+  } catch (error) {
+    console.error("❌ Erreur sauvegarde Grist:", error);
+    throw new Error("Impossible de sauvegarder dans Grist: " + error.message);
   }
 }
 
@@ -123,58 +150,9 @@ function showToast(msg, isError = false) {
     toast.classList.toggle('error', isError);
     toast.classList.toggle('success', !isError);
     
-    // Auto-hide après 3 secondes
     setTimeout(() => {
       toast.classList.add('hidden');
     }, 3000);
-  }
-}
-
-/* =========================================================
-   SCRAPING FICTIF (À REMPLACER PAR TA VRAIE LOGIQUE)
-   ========================================================= */
-
-async function scrapeAnnuaire(url, filters, credentials) {
-  console.log("🕷️ Scraping:", url, filters);
-  
-  // Pour le test, retourner des données fictives
-  return [
-    { id: 1, name: "Alice Dupont", email: "alice@resana.fr" },
-    { id: 2, name: "Bob Martin", email: "bob@resana.fr" },
-    { id: 3, name: "Charlie Durand", email: "charlie@resana.fr" }
-  ];
-}
-
-/* =========================================================
-   SAUVEGARDE DANS GRIST
-   ========================================================= */
-
-async function saveScrapedData(data) {
-  try {
-    console.log("💾 Sauvegarde dans Grist...", data.length, "enregistrements");
-    
-    if (typeof grist === 'undefined') {
-      throw new Error("Grist n'est pas disponible");
-    }
-
-    // Préparer les données pour Grist
-    const records = data.map(item => ({
-      fields: {
-        Name: item.name,
-        Email: item.email,
-        // Ajoute d'autres champs selon ta table
-      }
-    }));
-
-    // Ajouter les enregistrements
-    const result = await grist.docApi.addRecords('Annuaire', records);
-    
-    console.log("✅ Données sauvegardées:", result);
-    state.results.imported = data.length;
-
-  } catch (error) {
-    console.error("❌ Erreur sauvegarde:", error);
-    throw new Error("Erreur lors de la sauvegarde: " + error.message);
   }
 }
 
@@ -209,54 +187,41 @@ function showResults() {
 
 async function startScrape() {
   if (state.isRunning) return;
-  
+
   try {
     console.log("\n🚀 ===== DÉMARRAGE DU SCRAPING =====\n");
     state.isRunning = true;
-    
-    // Réinitialiser les résultats
     state.results = { imported: 0, updated: 0, errors: 0, errorList: [] };
-    
-    // Récupérer les paramètres du formulaire
+
     const url = document.getElementById('input-url').value;
     const filters = document.getElementById('input-filters').value;
-    const shouldUpdate = document.getElementById('checkbox-update').checked;
-    
+
     if (!url) {
       showToast("❌ Veuillez entrer une URL", true);
       return;
     }
 
-    // Afficher la barre de progression
     const progressSection = document.getElementById('progress-section');
     const resultsSection = document.getElementById('results-section');
     if (progressSection) progressSection.classList.remove('hidden');
     if (resultsSection) resultsSection.classList.add('hidden');
-    
-    updateProgressBar(0, 1);
-    
-    // Étape 1: Récupérer credentials
-    showToast("🔐 Récupération des credentials...");
-    const credentials = await getCredentialsFromGrist();
+
+    // Étape 1: Scraping
     updateProgressBar(1, 3);
-    
-    // Étape 2: Scraping
     showToast("🕷️ Scraping en cours...");
-    const scrapedData = await scrapeAnnuaire(url, filters, credentials);
+    const scrapedData = await scrapeAnnuaire(url, filters);
+
+    // Étape 2: Sauvegarder dans Grist
     updateProgressBar(2, 3);
-    console.log("📊 Données scrapées:", scrapedData.length);
-    
-    // Étape 3: Sauvegarde
     showToast("💾 Sauvegarde dans Grist...");
-    await saveScrapedData(scrapedData);
+    await saveToGrist(scrapedData);
+
     updateProgressBar(3, 3);
-    
-    // Résultats
     showResults();
     showToast(`✅ Terminé: ${state.results.imported} enregistrements importés`);
-    
+
     console.log("\n✅ ===== SCRAPING RÉUSSI =====\n");
-    
+
   } catch (error) {
     console.error("❌ ERREUR GLOBALE:", error);
     state.results.errors++;
@@ -276,21 +241,19 @@ async function startScrape() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   console.log("🔌 Page chargée - Initialisation en cours...");
-  
-  // Attendre Grist
-  await waitForGrist();
-  
+
   // Initialiser Grist
   const gristReady = await initializeGrist();
-  
+
   if (!gristReady) {
-    showToast("⚠️ Grist non disponible - mode test", false);
+    showToast("⚠️ Grist non disponible", true);
+  } else {
+    showToast("✅ Connecté à Grist");
   }
 
   // Attacher les event listeners
   const btnStart = document.getElementById('btn-start-scrape');
   const btnNew = document.getElementById('btn-new-scrape');
-  const btnBack = document.getElementById('btn-back-errors');
 
   if (btnStart) {
     btnStart.addEventListener('click', async () => {
@@ -298,21 +261,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       await startScrape();
     });
     console.log("✅ Bouton 'Démarrer' attaché");
-  } else {
-    console.error("❌ Bouton #btn-start-scrape non trouvé");
   }
 
   if (btnNew) {
     btnNew.addEventListener('click', () => {
       document.getElementById('main-view').classList.add('active');
-      document.getElementById('errors-view').classList.remove('active');
-    });
-  }
-
-  if (btnBack) {
-    btnBack.addEventListener('click', () => {
-      document.getElementById('main-view').classList.add('active');
-      document.getElementById('errors-view').classList.remove('active');
+      document.getElementById('input-url').value = '';
+      document.getElementById('input-filters').value = '';
     });
   }
 
