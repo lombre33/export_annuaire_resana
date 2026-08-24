@@ -4,27 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Export Annuaire Resana</title>
-  
   <style>
-    /* =========================================================
-       VARIABLES & RESET
-       ========================================================= */
-
-    :root {
-      --primary: #2563eb;
-      --primary-dark: #1d4ed8;
-      --success: #10b981;
-      --warning: #f59e0b;
-      --error: #ef4444;
-      --text-primary: #1f2937;
-      --text-secondary: #6b7280;
-      --bg-light: #f9fafb;
-      --bg-white: #ffffff;
-      --border: #e5e7eb;
-      --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-      --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
-    }
-
     * {
       margin: 0;
       padding: 0;
@@ -33,374 +13,525 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      background: var(--bg-white);
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       padding: 20px;
-      color: var(--text-primary);
     }
 
-    /* =========================================================
-       LAYOUT PRINCIPAL
-       ========================================================= */
-
     .container {
-      max-width: 600px;
-      margin: 0 auto;
-      background: var(--bg-white);
+      background: white;
       border-radius: 12px;
-      box-shadow: var(--shadow-lg);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 600px;
+      width: 100%;
       overflow: hidden;
     }
 
-    header {
-      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
-      padding: 30px 20px;
+      padding: 30px;
       text-align: center;
     }
 
-    header h1 {
-      font-size: 24px;
-      font-weight: 700;
-      margin-bottom: 8px;
+    .header h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
     }
 
-    header .subtitle {
+    .header p {
       font-size: 14px;
       opacity: 0.9;
     }
 
-    main {
-      padding: 30px 20px;
+    .content {
+      padding: 30px;
     }
 
-    /* =========================================================
-       VUES
-       ========================================================= */
-
-    .view {
+    /* ===== SECTIONS ===== */
+    .section {
       display: none;
     }
 
-    .view.active {
+    .section.active {
       display: block;
     }
 
-    /* =========================================================
-       FORMULAIRE
-       ========================================================= */
+    /* ===== MAIN VIEW (FORMULAIRE) ===== */
+    #main-view {
+      display: block;
+    }
 
-    .form-section h2,
-    .progress-section h3,
-    .results-section h3 {
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 20px;
-      color: var(--text-primary);
+    #main-view.hidden {
+      display: none;
     }
 
     .form-group {
-      margin-bottom: 18px;
+      margin-bottom: 20px;
     }
 
-    .form-group label {
+    label {
       display: block;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #333;
       font-size: 14px;
-      font-weight: 500;
-      margin-bottom: 6px;
-      color: var(--text-primary);
     }
 
-    .input-field {
+    input[type="text"],
+    input[type="url"],
+    textarea {
       width: 100%;
-      padding: 10px 12px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
+      padding: 12px 15px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
       font-size: 14px;
-      transition: border-color 0.2s, box-shadow 0.2s;
+      font-family: inherit;
+      transition: all 0.3s ease;
     }
 
-    .input-field:focus {
+    input[type="text"]:focus,
+    input[type="url"]:focus,
+    textarea:focus {
       outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
 
-    .form-group input[type="checkbox"] {
-      margin-right: 8px;
-      cursor: pointer;
+    textarea {
+      resize: vertical;
+      min-height: 80px;
     }
 
-    /* =========================================================
-       BOUTONS
-       ========================================================= */
+    .button-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 30px;
+    }
 
-    .btn {
+    button {
+      flex: 1;
       padding: 12px 20px;
-      border: none;
-      border-radius: 6px;
       font-size: 14px;
       font-weight: 600;
+      border: none;
+      border-radius: 8px;
       cursor: pointer;
-      transition: all 0.2s;
-      width: 100%;
-      text-align: center;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
-    .btn-primary {
-      background: var(--primary);
+    #btn-start-scrape {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
     }
 
-    .btn-primary:hover {
-      background: var(--primary-dark);
+    #btn-start-scrape:hover:not(:disabled) {
       transform: translateY(-2px);
-      box-shadow: var(--shadow-lg);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
     }
 
-    .btn-primary:active {
-      transform: translateY(0);
-    }
-
-    .btn-primary:disabled {
-      background: #9ca3af;
+    #btn-start-scrape:disabled {
+      opacity: 0.6;
       cursor: not-allowed;
-      transform: none;
     }
 
-    .btn-secondary {
-      background: var(--bg-light);
-      color: var(--text-primary);
-      border: 1px solid var(--border);
+    #btn-reset {
+      background: #f0f0f0;
+      color: #333;
     }
 
-    .btn-secondary:hover {
-      background: #f3f4f6;
-      border-color: var(--text-secondary);
+    #btn-reset:hover {
+      background: #e0e0e0;
     }
 
-    /* =========================================================
-       BARRE DE PROGRESSION
-       ========================================================= */
+    /* ===== PROGRESS SECTION ===== */
+    #progress-section {
+      text-align: center;
+    }
 
-    .progress-section {
-      margin-top: 30px;
-      padding-top: 30px;
-      border-top: 1px solid var(--border);
+    #progress-section.hidden {
+      display: none;
+    }
+
+    .progress-container {
+      margin: 30px 0;
+    }
+
+    .progress-step {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .progress-step.active .step-icon {
+      background: #667eea;
+      color: white;
+    }
+
+    .progress-step.completed .step-icon {
+      background: #4caf50;
+      color: white;
+    }
+
+    .step-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      background: #f0f0f0;
+      color: #999;
+      margin-right: 15px;
+    }
+
+    .step-content {
+      flex: 1;
+      text-align: left;
+    }
+
+    .step-content h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 5px;
+    }
+
+    .step-content p {
+      font-size: 12px;
+      color: #999;
     }
 
     .progress-bar {
       width: 100%;
-      height: 8px;
-      background: var(--bg-light);
-      border-radius: 4px;
+      height: 6px;
+      background: #f0f0f0;
+      border-radius: 3px;
       overflow: hidden;
-      margin: 15px 0;
+      margin: 20px 0;
     }
 
-    .progress-fill {
+    .progress-bar-fill {
       height: 100%;
-      background: linear-gradient(90deg, var(--primary) 0%, var(--success) 100%);
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
       width: 0%;
       transition: width 0.3s ease;
     }
 
-    .progress-text {
-      font-size: 13px;
-      color: var(--text-secondary);
+    /* ===== RESULTS SECTION ===== */
+    #results-section {
       text-align: center;
     }
 
-    .hidden {
-      display: none !important;
+    #results-section.hidden {
+      display: none;
     }
 
-    /* =========================================================
-       RÉSULTATS
-       ========================================================= */
-
-    .results-section {
-      margin-top: 30px;
-      padding-top: 30px;
-      border-top: 1px solid var(--border);
-    }
-
-    .results-grid {
+    .results-summary {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 15px;
-      margin-bottom: 20px;
+      margin: 20px 0;
     }
 
     .result-card {
-      background: var(--bg-light);
+      background: #f9f9f9;
+      padding: 20px;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+    }
+
+    .result-card.success {
+      border-left-color: #4caf50;
+    }
+
+    .result-card.updated {
+      border-left-color: #2196f3;
+    }
+
+    .result-card.error {
+      border-left-color: #f44336;
+    }
+
+    .result-card h4 {
+      font-size: 12px;
+      text-transform: uppercase;
+      color: #999;
+      margin-bottom: 10px;
+      letter-spacing: 0.5px;
+    }
+
+    .result-card p {
+      font-size: 32px;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .error-list {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
       border-radius: 8px;
       padding: 15px;
-      text-align: center;
-      border: 1px solid var(--border);
+      margin: 20px 0;
+      text-align: left;
+      max-height: 200px;
+      overflow-y: auto;
     }
 
-    .result-label {
-      display: block;
+    .error-list h4 {
+      color: #f44336;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    .error-list ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .error-list li {
       font-size: 12px;
-      color: var(--text-secondary);
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      font-weight: 600;
+      color: #666;
+      padding: 5px 0;
+      border-bottom: 1px solid rgba(255, 193, 7, 0.3);
     }
 
-    .result-value {
-      display: block;
-      font-size: 28px;
-      font-weight: 700;
-      color: var(--primary);
+    .error-list li:last-child {
+      border-bottom: none;
     }
 
-    /* =========================================================
-       TOAST (notifications)
-       ========================================================= */
+    #btn-new-scrape {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      margin-top: 20px;
+    }
 
+    /* ===== TOAST NOTIFICATIONS ===== */
     .toast {
       position: fixed;
       bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--text-primary);
+      right: 20px;
+      background: #333;
       color: white;
-      padding: 14px 20px;
-      border-radius: 6px;
-      font-size: 14px;
-      box-shadow: var(--shadow-lg);
+      padding: 15px 20px;
+      border-radius: 8px;
+      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+      animation: slideIn 0.3s ease;
       z-index: 1000;
-      animation: slideUp 0.3s ease;
-      max-width: 90%;
+      max-width: 300px;
+      word-wrap: break-word;
     }
 
     .toast.error {
-      background: var(--error);
+      background: #f44336;
     }
 
     .toast.success {
-      background: var(--success);
+      background: #4caf50;
     }
 
-    @keyframes slideUp {
+    @keyframes slideIn {
       from {
+        transform: translateX(400px);
         opacity: 0;
-        transform: translateX(-50%) translateY(20px);
       }
       to {
+        transform: translateX(0);
         opacity: 1;
-        transform: translateX(-50%) translateY(0);
       }
     }
 
-    /* =========================================================
-       RESPONSIVE
-       ========================================================= */
-
-    @media (max-width: 480px) {
-      main {
-        padding: 20px 15px;
+    @keyframes slideOut {
+      from {
+        transform: translateX(0);
+        opacity: 1;
       }
-
-      header {
-        padding: 20px 15px;
+      to {
+        transform: translateX(400px);
+        opacity: 0;
       }
+    }
 
-      header h1 {
+    .toast.out {
+      animation: slideOut 0.3s ease;
+    }
+
+    /* ===== DEBUG CONSOLE ===== */
+    .debug-toggle {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: #333;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      z-index: 999;
+    }
+
+    .debug-console {
+      position: fixed;
+      bottom: 60px;
+      left: 20px;
+      background: #1e1e1e;
+      color: #00ff00;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 10px;
+      max-width: 400px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      display: none;
+      z-index: 999;
+      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .debug-console.active {
+      display: block;
+    }
+
+    .debug-line {
+      padding: 3px 0;
+      border-bottom: 1px solid #333;
+    }
+
+    .debug-line.error {
+      color: #ff6b6b;
+    }
+
+    .debug-line.success {
+      color: #51cf66;
+    }
+
+    .debug-line.warning {
+      color: #ffd43b;
+    }
+
+    @media (max-width: 600px) {
+      .header h1 {
         font-size: 20px;
       }
 
-      .results-grid {
+      .results-summary {
         grid-template-columns: 1fr;
       }
 
-      .btn {
-        padding: 10px 16px;
-        font-size: 13px;
+      .button-group {
+        flex-direction: column;
+      }
+
+      .toast {
+        left: 20px;
+        right: 20px;
+        bottom: 20px;
       }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <header>
+    <div class="header">
       <h1>📋 Export Annuaire Resana</h1>
-      <p class="subtitle">Importer les données dans Grist</p>
-    </header>
+      <p>Importez facilement les données depuis Resana vers Grist</p>
+    </div>
 
-    <div id="toast" class="toast hidden"></div>
-
-    <!-- Vue principale -->
-    <main id="main-view" class="view active">
-      <section class="form-section">
-        <h2>Configuration du scraping</h2>
-
+    <div class="content">
+      <!-- ===== SECTION PRINCIPALE (FORMULAIRE) ===== -->
+      <div id="main-view" class="section active">
         <div class="form-group">
-          <label for="input-url">URL de l'annuaire</label>
+          <label for="input-url">🔗 URL de Resana</label>
           <input 
             type="url" 
             id="input-url" 
-            placeholder="https://annuaire.example.com" 
-            class="input-field"
+            placeholder="https://resana.net/annuaire/..."
+            value=""
           >
         </div>
 
         <div class="form-group">
-          <label for="input-filters">Filtres (optionnel)</label>
-          <input 
-            type="text" 
+          <label for="input-filters">🔍 Filtres (optionnel)</label>
+          <textarea 
             id="input-filters" 
-            placeholder="ex: Service A, Service B" 
-            class="input-field"
-          >
+            placeholder="Entrez les mots-clés à filtrer, séparés par des virgules&#10;Ex: Paris, Développeur, 2024"
+          ></textarea>
         </div>
 
-        <div class="form-group">
-          <label>
-            <input type="checkbox" id="checkbox-update" checked>
-            Mettre à jour les doublons existants
-          </label>
+        <div class="button-group">
+          <button id="btn-start-scrape">🚀 Lancer le scraping</button>
+          <button id="btn-reset">🔄 Réinitialiser</button>
         </div>
+      </div>
 
-        <button id="btn-start-scrape" class="btn btn-primary">
-          🚀 Lancer le scraping
-        </button>
-      </section>
+      <!-- ===== SECTION PROGRESSION ===== -->
+      <div id="progress-section" class="section hidden">
+        <h2>⏳ Traitement en cours...</h2>
+        <div class="progress-container">
+          <div class="progress-step active">
+            <div class="step-icon">1</div>
+            <div class="step-content">
+              <h3>Scraping des données</h3>
+              <p>Récupération de l'annuaire depuis Resana</p>
+            </div>
+          </div>
 
-      <!-- Barre de progression -->
-      <section id="progress-section" class="progress-section hidden">
-        <h3>Progression</h3>
+          <div class="progress-step">
+            <div class="step-icon">2</div>
+            <div class="step-content">
+              <h3>Sauvegarde dans Grist</h3>
+              <p>Enregistrement des enregistrements</p>
+            </div>
+          </div>
+
+          <div class="progress-step">
+            <div class="step-icon">3</div>
+            <div class="step-content">
+              <h3>Finalization</h3>
+              <p>Affichage des résultats</p>
+            </div>
+          </div>
+        </div>
         <div class="progress-bar">
-          <div id="progress-fill" class="progress-fill"></div>
+          <div class="progress-bar-fill"></div>
         </div>
-        <p id="progress-text" class="progress-text">0 / 0 enregistrements</p>
-      </section>
+      </div>
 
-      <!-- Résumé des résultats -->
-      <section id="results-section" class="results-section hidden">
-        <h3>📊 Résultats</h3>
-        <div class="results-grid">
-          <div class="result-card">
-            <span class="result-label">Importés</span>
-            <span id="result-imported" class="result-value">0</span>
+      <!-- ===== SECTION RÉSULTATS ===== -->
+      <div id="results-section" class="section hidden">
+        <h2>✅ Scraping terminé!</h2>
+        <div class="results-summary">
+          <div class="result-card success">
+            <h4>Importés</h4>
+            <p id="result-imported">0</p>
           </div>
-          <div class="result-card">
-            <span class="result-label">Mis à jour</span>
-            <span id="result-updated" class="result-value">0</span>
+          <div class="result-card updated">
+            <h4>Mis à jour</h4>
+            <p id="result-updated">0</p>
           </div>
-          <div class="result-card">
-            <span class="result-label">En erreur</span>
-            <span id="result-errors" class="result-value">0</span>
+          <div class="result-card error">
+            <h4>Erreurs</h4>
+            <p id="result-errors">0</p>
           </div>
         </div>
-        <button id="btn-new-scrape" class="btn btn-secondary">
-          ↻ Nouveau scraping
-        </button>
-      </section>
-    </main>
+        <div id="error-list-container"></div>
+        <button id="btn-new-scrape">📝 Nouveau scraping</button>
+      </div>
+    </div>
   </div>
+
+  <!-- DEBUG CONSOLE -->
+  <button class="debug-toggle" id="debug-toggle">🐛 Debug</button>
+  <div class="debug-console" id="debug-console"></div>
 
   <!-- ✅ PAS DE SCRIPT EXTERNE - Grist l'injecte automatiquement -->
   <script src="script.js"></script>
